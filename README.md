@@ -47,5 +47,5 @@ limitations under the License.
 
 A copy of the license is available in the repository's [license.txt]( https://github.com/update-hosted-feature-service/master/license.txt) file.
 
-[](Esri Tags: Update Hosted Feature Services)
+[](Esri Tags: ArcGIS.com Online Update Hosted Feature Services Automate Python Publish)
 [](Esri Language: Python)​
