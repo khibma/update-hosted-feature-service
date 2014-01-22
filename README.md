@@ -7,28 +7,27 @@ The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com
 
 ## Instructions
 
-1. Download the update.py and settings.ini files. (Hint: Click the "Download Zip" button on the right)
+1. Download the update.py and settings.ini files. (Hint: Click the `Download ZIP` button on the right)
 2. Save these files to your local working directory
-3. Download the Python module, 'requests'. You can see it on [GitHub here](https://github.com/kennethreitz/requests) or directly download the [zip file here](https://github.com/kennethreitz/requests/archive/master.zip)
-3a. Open the zip file and save the 'requests' folder to your working directory or deploy to your Python installation
-4. Update the settings.ini file to values for your service.
+3. Download the Python module, `requests`. You can see it on [GitHub here](https://github.com/kennethreitz/requests) or directly download the [zip file here](https://github.com/kennethreitz/requests/archive/master.zip)
+4. Open the zip file and save the 'requests' folder to your working directory or deploy to your Python installation
+5. Update the settings.ini file to values for your service.
 ![App](http://blogs.esri.com/esri/arcgis/files/2014/01/fs_ini_props1.jpg)
-5. Run the python script
+6. Run the python script
 
-.. code-block:: pycon
-
-    c:\>c:\Python27\ArcGIS10.2\python.exe c:\myLocalDirectory\update.py
-    ...
-    Starting Feature Service publish process
-    found Feature Service : 7ac9e68e9cd341e0a0a217590e4f6265
-    found Service Definition : bb2261fe2d684e7cb950c6d29372642e
-    Created D:\myLocalFolder\MyMaps\tempDir\MyMapService.sd
-    updated SD:   bb2261fe24684e7cb950c6d29372642e
-    successfully deleted...7ac9e68e9cd34fe0a0f217590e4f6265...
-    successfully updated...[{u'encodedServiceURL': u'http://services1.arcgis.com/hLJbHVsas2rDIzK0I/arcgis/rest/services/MyMapService/FeatureServer', u'jobId': u'c886b86c-46d4-4be2-95ab-32b284b72dfb', u'serviceurl': u'http://services1.arcgis.com/hLJbHVsas2rDIzK0I/arcgis/rest/services/MyMapService/FeatureServer', u'type': u'Feature Service', u'serviceItemId': u'7df087dfea1b4c7bad2ba372faeefc1c', u'size': 75344}]...
-    successfully shared...7df087dfea1b4c7bad2ba372faeefc1c...
-    finished.
-
+``` 
+c:\>c:\Python27\ArcGIS10.2\python.exe c:\myLocalDirectory\update.py
+...
+Starting Feature Service publish process
+found Feature Service : 7ac9e68e9cd341e0a0a217590e4f6265
+found Service Definition : bb2261fe2d684e7cb950c6d29372642e
+Created D:\myLocalFolder\MyMaps\tempDir\MyMapService.sd
+updated SD:   bb2261fe24684e7cb950c6d29372642e
+successfully deleted...7ac9e68e9cd34fe0a0f217590e4f6265...
+successfully updated...[{u'encodedServiceURL': u'http://services1.arcgis.com/hLJbHVsas2rDIzK0I/arcgis/rest/services/MyMapService/FeatureServer', u'jobId': u'c886b86c-46d4-4be2-95ab-32b284b72dfb', u'serviceurl': u'http://services1.arcgis.com/hLJbHVsas2rDIzK0I/arcgis/rest/services/MyMapService/FeatureServer', u'type': u'Feature Service', u'serviceItemId': u'7df087dfea1b4c7bad2ba372faeefc1c', u'size': 75344}]...
+successfully shared...7df087dfea1b4c7bad2ba372faeefc1c...
+finished.
+```
 
 ## Requirements
 
