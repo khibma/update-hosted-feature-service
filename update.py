@@ -190,6 +190,7 @@ def publish():
     
     query_dict = {'itemID': agol.SDitemID,
               'filetype': 'serviceDefinition',
+              'overwrite': 'true',
               'f': 'json',
               'token': agol.token}    
     
@@ -198,22 +199,6 @@ def publish():
     print("successfully updated...{}...").format(jsonResponse['services'])
     
     return jsonResponse['services'][0]['serviceItemId']
-    
-
-def deleteExisting():
-    #
-    # Delete the item from AGOL
-    #
-        
-    deleteURL = agol.http+'/content/users/{}/items/{}/delete'.format(agol.username, agol.itemID)
-    
-    query_dict = {'f': 'json',
-                  'token': agol.token}    
-    
-    jsonResponse = sendAGOLReq(deleteURL, query_dict)
-    
-    print("successfully deleted...{}...").format(jsonResponse['itemId'])    
-
     
 
 def enableSharing(newItemID, everyone, orgs, groups):
@@ -307,9 +292,6 @@ if __name__ == "__main__":
     # overwrite the existing .SD on arcgis.com
     
     if upload(finalSD, tags, description):
-    
-        # delete the existing service
-        deleteExisting()
         
         # publish the sd which was just uploaded
         newItemID = publish()
