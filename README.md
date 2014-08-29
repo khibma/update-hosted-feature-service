@@ -1,6 +1,9 @@
 # update-hosted-feature-service
 
-This Python script turns an MXD into a service definition (SD) file. Your ArcGIS.com account is searched for a matching service. The SD file is uploaded to your ArcGIS.com account, the existing service is deleted, and the uploaded SD file is published. 
+This Python script turns an MXD into a service definition (SD) file. Your ArcGIS.com account is searched for a matching service. The SD file is uploaded to your ArcGIS.com account, the existing service is overwritten with new content.
+
+##### Note! This script was updated August 29, 2014 - The script no longer deletes and re-creates the feature service. It now will overwrite it in place. This means the original itemID of the feature service is maintained and any webmaps that referenced the feature service will continue to work.
+
 See more information on the [associated ArcGIS Blog post](http://blogs.esri.com/esri/arcgis/2014/01/24/updating-your-hosted-feature-service-for-10-2/).
 The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com/esri/arcgis/2013/04/23/updating-arcgis-com-hosted-feature-services-with-python/).
 
