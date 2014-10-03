@@ -29,7 +29,7 @@ class AGOLHandler(object):
         query_string = urllib.urlencode(query_dict)
         url = "https://www.arcgis.com/sharing/rest/generateToken"
         
-        token = json.loads(urllib.urlopen(url + "?f=json", query_string).read())
+        token = json.loads(urllib.urlopen(url + "?f=json", query_string, proxies=proxyDict).read())
         
         if "token" not in token:
             print token['error']
@@ -168,7 +168,7 @@ def upload(fileName, tags, description):
         "&tags="+tags+\
         "&description="+description
         
-    response = requests.post(url, files=filesUp);     
+    response = requests.post(url, files=filesUp, proxies=proxyDict);     
     itemPartJSON = json.loads(response.text)
     
     if "success" in itemPartJSON:
@@ -229,7 +229,7 @@ def sendAGOLReq(URL, query_dict):
     
     query_string = urllib.urlencode(query_dict)    
     
-    jsonResponse = urllib.urlopen(URL, urllib.urlencode(query_dict))
+    jsonResponse = urllib.urlopen(URL, urllib.urlencode(query_dict), proxies=proxyDict)
     jsonOuput = json.loads(jsonResponse.read())
     
     wordTest = ["success", "results", "services", "notSharedWith"]
@@ -276,6 +276,16 @@ if __name__ == "__main__":
     orgs = config.get('FS_SHARE', 'ORG')
     groups = config.get('FS_SHARE', 'GROUPS')  #Groups are by ID. Multiple groups comma separated
     
+    pxy_srvr = config.get('PROXY', 'SERVER')
+    pxy_port = config.get('PROXY', 'PORT')
+    pxy_user = config.get('PROXY', 'USER')
+    pxy_pass = config.get('PROXY', 'PASS')
+
+    http_proxy  = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+    https_proxy = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+    ftp_proxy   = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+    proxyDict = {"http"  : http_proxy, "https":https_proxy,"ftp": ftp_proxy}
+
     
     # create a temp directory under the script     
     tempDir = os.path.join(localPath, "tempDir")
