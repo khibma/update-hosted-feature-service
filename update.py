@@ -8,13 +8,15 @@ from xml.etree import ElementTree as ET
 
 class AGOLHandler(object):    
     
-    def __init__(self, username, password, serviceName):
+    def __init__(self, username, password, serviceName, folderName):
         self.username = username
         self.password = password
         self.serviceName = serviceName
         self.token, self.http = self.getToken(username, password)
         self.itemID = self.findItem("Feature Service")
         self.SDitemID = self.findItem("Service Definition")
+        self.folderName = folderName
+        self.folderID = self.findFolder()
         
     def getToken(self, username, password, exp=60):
         
@@ -60,6 +62,30 @@ class AGOLHandler(object):
             print("found {} : {}").format(findType, jsonResponse['results'][0]["id"])    
         
         return jsonResponse['results'][0]["id"]
+
+    def findFolder(self):
+        #
+        # Find the ID of the folder containing the service
+        #
+
+        if self.folderName == "None":
+            return ""
+        
+        findURL = self.http + "/content/users/{}".format(self.username)
+
+        query_dict = {'f': 'json',
+                      'num': 1,
+                      'token': self.token}
+
+        jsonResponse = sendAGOLReq(findURL, query_dict)
+
+        for folder in jsonResponse['folders']:
+            if folder['title'] == self.folderName:
+                return folder['id']
+        
+        print "\nCould not find the specified folder name provided in the settings.ini"
+        print "-- If your content is in the root folder, change the folder name to 'None'"
+        sys.exit()
             
 
 def urlopen(url, data=None):
@@ -157,7 +183,7 @@ def upload(fileName, tags, description):
     # This method uses 3rd party module: requests
     #
     
-    updateURL = agol.http+'/content/users/{}/items/{}/update'.format(agol.username, agol.SDitemID)
+    updateURL = agol.http+'/content/users/{}/{}/items/{}/update'.format(agol.username, agol.folderID, agol.SDitemID)
         
     filesUp = {"file": open(fileName, 'rb')}
     
@@ -205,7 +231,8 @@ def enableSharing(newItemID, everyone, orgs, groups):
     #
     # Share an item with everyone, the organization and/or groups
     #
-    shareURL = agol.http+'/content/users/{}/items/{}/share'.format(agol.username, newItemID)
+
+    shareURL = agol.http+'/content/users/{}/{}/items/{}/share'.format(agol.username, agol.folderID, newItemID)
 
     if groups == None:
         groups = ''
@@ -232,7 +259,7 @@ def sendAGOLReq(URL, query_dict):
     jsonResponse = urllib.urlopen(URL, urllib.urlencode(query_dict))
     jsonOuput = json.loads(jsonResponse.read())
     
-    wordTest = ["success", "results", "services", "notSharedWith"]
+    wordTest = ["success", "results", "services", "notSharedWith", "folders"]
     if any(word in jsonOuput for word in wordTest):
         return jsonOuput    
     else:
@@ -266,6 +293,7 @@ if __name__ == "__main__":
     # FS values
     MXD = config.get('FS_INFO', 'MXD')
     serviceName = config.get('FS_INFO', 'SERVICENAME')   
+    folderName = config.get('FS_INFO', 'FOLDERNAME')
     tags = config.get('FS_INFO', 'TAGS')
     description = config.get('FS_INFO', 'DESCRIPTION')
     maxRecords = config.get('FS_INFO', 'MAXRECORDS')
@@ -284,7 +312,7 @@ if __name__ == "__main__":
     finalSD = os.path.join(tempDir, serviceName + ".sd")  
 
     #initialize AGOLHandler class
-    agol = AGOLHandler(inputUsername, inputPswd, serviceName)
+    agol = AGOLHandler(inputUsername, inputPswd, serviceName, folderName)
     
     # Turn map document into .SD file for uploading
     makeSD(MXD, serviceName, tempDir, finalSD, maxRecords)
