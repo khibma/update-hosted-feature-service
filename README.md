@@ -14,7 +14,7 @@ The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com
 3. Download the Python module, `requests`. You can see it on [GitHub here](https://github.com/kennethreitz/requests) or directly download the [zip file here](https://github.com/kennethreitz/requests/archive/master.zip)
 4. Open the zip file and save the 'requests' folder to your working directory or deploy to your Python installation
 5. Update the settings.ini file to values for your service.
-![App](http://blogs.esri.com/esri/arcgis/files/2014/01/fs_ini_props1.jpg)
+![App](settings_image.jpg)
 6. Run the python script
 
 ``` 
