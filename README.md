@@ -2,7 +2,9 @@
 
 This Python script turns an MXD into a service definition (SD) file. Your ArcGIS.com account is searched for a matching service. The SD file is uploaded to your ArcGIS.com account, the existing service is overwritten with new content.
 
-##### Note! This script was updated August 29, 2014 - The script no longer deletes and re-creates the feature service. It now will overwrite it in place. This means the original itemID of the feature service is maintained and any webmaps that referenced the feature service will continue to work.
+#### Note! Update as of August, 2015 - A major overhaul to the entire workflow, but it'll continue updating your hosted feature service just the same as it did previously! The script no longer requires [Requests](http://docs.python-requests.org/en/latest/), it uses built-in Python libaries. It will now push your SD file to arcgis.com using a multipart upload (10mb chunks). This means it should support really big uploads without running out of memory!
+
+###### (old)Note! This script was updated August 29, 2014 - The script no longer deletes and re-creates the feature service. It now will overwrite it in place. This means the original itemID of the feature service is maintained and any webmaps that referenced the feature service will continue to work.
 
 See more information on the [associated ArcGIS Blog post](http://blogs.esri.com/esri/arcgis/2014/01/24/updating-your-hosted-feature-service-for-10-2/).
 The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com/esri/arcgis/2013/04/23/updating-arcgis-com-hosted-feature-services-with-python/).
@@ -11,11 +13,10 @@ The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com
 
 1. Download the update.py and settings.ini files. (Hint: Click the `Download ZIP` button on the right)
 2. Save these files to your local working directory
-3. Download the Python module, `requests`. You can see it on [GitHub here](https://github.com/kennethreitz/requests) or directly download the [zip file here](https://github.com/kennethreitz/requests/archive/master.zip)
-4. Open the zip file and save the 'requests' folder to your working directory or deploy to your Python installation
-5. Update the settings.ini file to values for your service.
+3.  __Note!__ You no longer need to download requests. The script will run using built-in Python modules now!
+4. Update the settings.ini file to values for your service.
 ![App](settings_image.jpg)
-6. Run the python script
+5. Run the python script
 
 ``` 
 c:\>c:\Python27\ArcGIS10.2\python.exe c:\myLocalDirectory\update.py
