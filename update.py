@@ -1,18 +1,97 @@
 # Import system modules
-import urllib, urllib2, json
-import sys, os
-import requests
+import json
+import sys
+import os
+import urllib2
+import urllib
+import ast
 import arcpy
-import ConfigParser
 from xml.etree import ElementTree as ET
+import mimetypes
+import gzip
+from io import BytesIO
+import codecs
+import uuid
+import time
+import ConfigParser as cp
+
+
+class MultipartFormdataEncoder(object):
+    """
+    Usage:   request_headers, request_data =
+                 MultipartFormdataEncoder().encodeForm(params, files)
+    Inputs:
+       params = {"f": "json", "token": token, "type": item_type,
+                 "title": title, "tags": tags, "description": description}
+       files = {"file": {"filename": "some_file.sd", "content": content}}
+           Note:  content = open(file_path, "rb").read()
+    """
+
+    def __init__(self):
+        self.boundary = uuid.uuid4().hex
+        self.content_type = {
+            "Content-Type": "multipart/form-data; boundary={}".format(self.boundary)
+        }
+
+    @classmethod
+    def u(cls, s):
+        if sys.hexversion < 0x03000000 and isinstance(s, str):
+            s = s.decode('utf-8')
+        if sys.hexversion >= 0x03000000 and isinstance(s, bytes):
+            s = s.decode('utf-8')
+        return s
+
+    def iter(self, fields, files):
+        """
+        Yield bytes for body. See class description for usage.
+        """
+        encoder = codecs.getencoder('utf-8')
+        for key, value in fields.items():
+            yield encoder('--{}\r\n'.format(self.boundary))
+            yield encoder(
+                self.u('Content-Disposition: form-data; name="{}"\r\n').format(key))
+            yield encoder('\r\n')
+            if isinstance(value, int) or isinstance(value, float):
+                value = str(value)
+            yield encoder(self.u(value))
+            yield encoder('\r\n')
+
+        for key, value in files.items():
+            if "filename" in value:
+                filename = value.get("filename")
+                yield encoder('--{}\r\n'.format(self.boundary))
+                yield encoder(self.u('Content-Disposition: form-data; name="{}"; filename="{}"\r\n').format(key, filename))
+                yield encoder('Content-Type: {}\r\n'.format(mimetypes.guess_type(filename)[0] or 'application/octet-stream'))
+            yield encoder('\r\n')
+            if "content" in value:
+                buff = value.get("content")
+                yield (buff, len(buff))
+            yield encoder('\r\n')
+
+        yield encoder('--{}--\r\n'.format(self.boundary))
+
+    def encodeForm(self, fields, files):
+        body = BytesIO()
+        for chunk, chunk_len in self.iter(fields, files):
+            body.write(chunk)
+        self.content_type["Content-Length"] = str(len(body.getvalue()))
+        return self.content_type, body.getvalue()
+
 
 class AGOLHandler(object):    
     
-    def __init__(self, username, password, serviceName, folderName):
+    def __init__(self, username, password, serviceName, folderName, proxyDict):
+        
+        self.headers = {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'User-Agent': ('updatehostedfeatureservice')
+        }        
         self.username = username
         self.password = password
+        self.base_url = "https://www.arcgis.com/sharing/rest"
+        self.proxyDict = proxyDict
         self.serviceName = serviceName
-        self.token, self.http = self.getToken(username, password)
+        self.token = self.getToken(username, password)
         self.itemID = self.findItem("Feature Service")
         self.SDitemID = self.findItem("Service Definition")
         self.folderName = folderName
@@ -26,91 +105,280 @@ class AGOLHandler(object):
                       'expiration': str(exp),
                       'client': 'referer',
                       'referer': referer,
-                      'f': 'json'}   
+                      'f': 'json'}
         
-        query_string = urllib.urlencode(query_dict)
-        url = "https://www.arcgis.com/sharing/rest/generateToken"
+        token_url = '{}/generateToken'.format(self.base_url)        
         
-        token = json.loads(urllib.urlopen(url + "?f=json", query_string, proxies=proxyDict).read())
+        token_response = self.url_request(token_url, query_dict, 'POST')
         
-        if "token" not in token:
-            print token['error']
+        if "token" not in token_response:
+            print(token_response['error'])
             sys.exit()
-        else: 
-            httpPrefix = "http://www.arcgis.com/sharing/rest"
-            if token['ssl'] == True:
-                httpPrefix = "https://www.arcgis.com/sharing/rest"
-                
-            return token['token'], httpPrefix
+        else:                           
+            return token_response['token']
             
     def findItem(self, findType):
-        #
-        # Find the itemID of whats being updated
-        #        
-        searchURL = self.http + "/search"
+        """ Find the itemID of whats being updated
+        """   
+        
+        searchURL = self.base_url + "/search"
         
         query_dict = {'f': 'json',
                       'token': self.token,
                       'q': "title:\""+ self.serviceName + "\"AND owner:\"" + self.username + "\" AND type:\"" + findType + "\""}    
         
-        jsonResponse = sendAGOLReq(searchURL, query_dict)
+        jsonResponse = self.url_request(searchURL , query_dict, 'POST')
         
         if jsonResponse['total'] == 0:
-            print "\nCould not find a service to update. Check the service name in the settings.ini"
+            print("\nCould not find a service to update. Check the service name in the settings.ini")
             sys.exit()
         else:
-            print("found {} : {}").format(findType, jsonResponse['results'][0]["id"])    
-        
-        return jsonResponse['results'][0]["id"]
+            print("found {} : {}".format(findType, jsonResponse['results'][0]["id"]))        
+            return jsonResponse['results'][0]["id"]
+    
 
-    def findFolder(self):
-        #
-        # Find the ID of the folder containing the service
-        #
+    def findFolder(self, folderName=None):
+        """ Find the ID of the folder containing the service
+        """
 
         if self.folderName == "None":
             return ""
         
-        findURL = self.http + "/content/users/{}".format(self.username)
+        findURL = "{}/content/users/{}".format(self.base_url, self.username)
 
         query_dict = {'f': 'json',
                       'num': 1,
                       'token': self.token}
 
-        jsonResponse = sendAGOLReq(findURL, query_dict)
+        jsonResponse = self.url_request(findURL, query_dict, 'POST')
 
         for folder in jsonResponse['folders']:
             if folder['title'] == self.folderName:
                 return folder['id']
         
-        print "\nCould not find the specified folder name provided in the settings.ini"
-        print "-- If your content is in the root folder, change the folder name to 'None'"
+        print("\nCould not find the specified folder name provided in the settings.ini")
+        print("-- If your content is in the root folder, change the folder name to 'None'")
         sys.exit()
+        
+    def upload(self, fileName, tags, description): 
+        """
+         Overwrite the SD on AGOL with the new SD.
+         This method uses 3rd party module: requests
+        """
+        
+        updateURL = '{}/content/users/{}/{}/items/{}/update'.format(self.base_url, self.username, self.folderID, self.SDitemID)
+        
+        query_dict = {"filename": fileName,
+                      "type": "Service Definition",
+                      "title": self.serviceName,
+                      "tags": tags,
+                      "description": description,
+                      "f": "json",
+                      'multipart': 'true',
+                      "token": self.token}
+
+        details = {'filename': fileName}
+        add_item_res = self.url_request(updateURL, query_dict, "POST", "", details)
+    
+        itemPartJSON = self._add_part(fileName, add_item_res['id'], "Service Definition")            
+        
+        if "success" in itemPartJSON:
+            itemPartID = itemPartJSON['id']          
             
+            commit_response = self.commit(itemPartID)
+        
+            # valid states: partial | processing | failed | completed
+            status = 'processing'
+            while status == 'processing' or status == 'partial':
+                status = self.item_status(itemPartID)['status']
+                time.sleep(1.5)
 
-def urlopen(url, data=None):
-    # monkey-patch URLOPEN
-    referer = "http://www.arcgis.com/"
-    req = urllib2.Request(url)
-    req.add_header('Referer', referer)
+            print("updated SD:   {}".format(itemPartID))           
+            return True
+        
+        else:
+            print("\n.sd file not uploaded. Check the errors and try again.\n")
+            print(itemPartJSON)
+            sys.exit()
 
-    if data:
-        response = urllib2.urlopen(req, data)
-    else:
+    def _add_part(self, file_to_upload, item_id, upload_type=None):
+        """ Add the item to the portal in chunks.
+        """
+
+        def read_in_chunks(file_object, chunk_size=10000000):
+            """Generate file chunks of 10MB"""
+            while True:
+                data = file_object.read(chunk_size)
+                if not data:
+                    break
+                yield data
+
+        url = '{}/content/users/{}/items/{}/addPart'.format(self.base_url, self.username, item_id)
+
+        with open(file_to_upload, 'rb') as f:
+            for part_num, piece in enumerate(read_in_chunks(f), start=1):
+                title = os.path.basename(file_to_upload)
+                files = {"file": {"filename": file_to_upload, "content": piece}}
+                params = {
+                    'f': "json",
+                    'token': self.token,
+                    'partNum': part_num,
+                    'title': title,
+                    'itemType': 'file',
+                    'type': upload_type
+                }
+                request_headers, request_data = MultipartFormdataEncoder().encodeForm(params, files)
+                resp = self.url_request(url, request_data, "MULTIPART", request_headers)
+
+        return resp 
+            
+    def item_status(self, item_id):
+        """ Gets the status of an item.
+        Returns:
+            The item's status. (partial | processing | failed | completed)
+        """
+
+        url = '{}/content/users/{}/items/{}/status'.format(self.base_url, self.username, item_id)
+        parameters = {'token': self.token,
+                      'f': 'json'}
+
+        return self.url_request(url, parameters)
+
+    def commit(self, item_id):
+        """ Commits an item that was uploaded as multipart
+        """
+
+        url = '{}/content/users/{}/items/{}/commit'.format(self.base_url, self.username, item_id)
+        parameters = {'token': self.token,
+                      'f': 'json'}
+
+        return self.url_request(url, parameters)    
+        
+        
+    def publish(self):
+        """ Publish the existing SD on AGOL (it will be turned into a Feature Service)
+        """
+        
+        publishURL = '{}/content/users/{}/publish'.format(self.base_url, self.username)
+        
+        query_dict = {'itemID': self.SDitemID,
+                  'filetype': 'serviceDefinition',
+                  'overwrite': 'true',
+                  'f': 'json',
+                  'token': self.token}    
+        
+        jsonResponse = self.url_request(publishURL, query_dict, 'POST')                
+        print("successfully updated...{}...".format(jsonResponse['services']))
+        
+        return jsonResponse['services'][0]['serviceItemId']
+        
+    
+    def enableSharing(self, newItemID, everyone, orgs, groups):
+        """ Share an item with everyone, the organization and/or groups
+        """
+    
+        shareURL = '{}/content/users/{}/{}/items/{}/share'.format(self.base_url, self.username, self.folderID, newItemID)
+    
+        if groups == None:
+            groups = ''
+        
+        query_dict = {'f': 'json',
+                      'everyone' : everyone,
+                      'org' : orgs,
+                      'groups' : groups,
+                      'token': self.token}    
+        
+        jsonResponse = self.url_request(shareURL, query_dict, 'POST')
+        
+        print("successfully shared...{}...".format(jsonResponse['itemId']))              
+        
+   
+    def url_request(self, in_url, request_parameters, request_type='GET',
+                    additional_headers=None, files=None, repeat=0):
+        """
+        Make a request to the portal, provided a portal URL
+        and request parameters, returns portal response.
+
+        Arguments:
+            in_url -- portal url
+            request_parameters -- dictionary of request parameters.
+            request_type -- HTTP verb (default: GET)
+            additional_headers -- any headers to pass along with the request.
+            files -- any files to send.
+            repeat -- repeat the request up to this number of times.
+
+        Returns:
+            dictionary of response from portal instance.
+        """
+
+        if request_type == 'GET':            
+            req = urllib2.Request('?'.join((in_url, urllib.urlencode(request_parameters))))
+        elif request_type == 'MULTIPART':
+            req = urllib2.Request(in_url, request_parameters)        
+        else:            
+            req = urllib2.Request(
+                in_url, urllib.urlencode(request_parameters), self.headers)
+            
+        if additional_headers:
+            for key, value in list(additional_headers.items()):
+                req.add_header(key, value)
+        req.add_header('Accept-encoding', 'gzip')
+        
+        if self.proxyDict:             
+            p = urllib2.ProxyHandler(self.proxyDict)            
+            auth = urllib2.HTTPBasicAuthHandler()            
+            opener =  urllib2.build_opener(p, auth, urllib2.HTTPHandler)            
+            urllib2.install_opener(opener)            
+            
         response = urllib2.urlopen(req)
 
-    return response
 
+        if response.info().get('Content-Encoding') == 'gzip':
+            buf = BytesIO(response.read())
+            with gzip.GzipFile(fileobj=buf) as gzip_file:
+                response_bytes = gzip_file.read()
+        else:
+            response_bytes = response.read()
 
-def makeSD(MXD, serviceName, tempDir, outputSD, maxRecords):
-    #
-    # create a draft SD and modify the properties to overwrite an existing FS
-    #    
+        response_text = response_bytes.decode('UTF-8')
+        response_json = json.loads(response_text)
+
+        if not response_json or "error" in response_json:
+            rerun = False
+            if repeat > 0:
+                repeat -= 1
+                rerun = True
+
+            if rerun:
+                time.sleep(2)
+                response_json = self.url_request(
+                    in_url, request_parameters, request_type,
+                    additional_headers, files, repeat)
+
+        return response_json    
+            
+
+def makeSD(MXD, serviceName, tempDir, outputSD, maxRecords, tags, summary):
+    """ create a draft SD and modify the properties to overwrite an existing FS
+    """
     
     arcpy.env.overwriteOutput = True
     # All paths are built by joining names to the tempPath
     SDdraft = os.path.join(tempDir, "tempdraft.sddraft")
-    newSDdraft = os.path.join(tempDir, "updatedDraft.sddraft")    
+    newSDdraft = os.path.join(tempDir, "updatedDraft.sddraft")
+    
+    # Check the MXD for summary and tags, if empty, push them in.
+    try:
+        mappingMXD = arcpy.mapping.MapDocument(MXD)    
+        if mappingMXD.tags == "":
+            mappingMXD.tags = tags
+            mappingMXD.save()
+        if mappingMXD.summary == "":
+            mappingMXD.summary = summary
+            mappingMXD.save()
+    except IOError:
+        print("IOError on save, do you have the MXD open? Summary/tag info not pushed to MXD, publishing may fail...")
+        
      
     arcpy.mapping.CreateMapSDDraft(MXD, SDdraft, serviceName, "MY_HOSTED_SERVICES")
     
@@ -169,121 +437,30 @@ def makeSD(MXD, serviceName, tempDir, outputSD, maxRecords):
     if analysis['errors'] == {}:
         # Stage the service
         arcpy.StageService_server(newSDdraft, outputSD)
-        print "Created {}".format(outputSD)
+        print("Created {}".format(outputSD))
             
     else:
         # If the sddraft analysis contained errors, display them and quit.
-        print analysis['errors']
+        print("Errors in analyze: \n {}".format(analysis['errors']))
         sys.exit()
    
-           
-def upload(fileName, tags, description): 
-    #
-    # Overwrite the SD on AGOL with the new SD.
-    # This method uses 3rd party module: requests
-    #
-    
-    updateURL = agol.http+'/content/users/{}/{}/items/{}/update'.format(agol.username, agol.folderID, agol.SDitemID)
-        
-    filesUp = {"file": open(fileName, 'rb')}
-    
-    url = updateURL + "?f=json&token="+agol.token+ \
-        "&filename="+fileName+ \
-        "&type=Service Definition"\
-        "&title="+agol.serviceName+ \
-        "&tags="+tags+\
-        "&description="+description
-        
-    response = requests.post(url, files=filesUp, proxies=proxyDict);     
-    itemPartJSON = json.loads(response.text)
-    
-    if "success" in itemPartJSON:
-        itemPartID = itemPartJSON['id']
-        print("updated SD:   {}").format(itemPartID)
-        return True
-    else:
-        print "\n.sd file not uploaded. Check the errors and try again.\n"  
-        print itemPartJSON
-        sys.exit()        
-    
-    
-def publish():
-    #
-    # Publish the existing SD on AGOL (it will be turned into a Feature Service)
-    #
-    
-    publishURL = agol.http+'/content/users/{}/publish'.format(agol.username)
-    
-    query_dict = {'itemID': agol.SDitemID,
-              'filetype': 'serviceDefinition',
-              'overwrite': 'true',
-              'f': 'json',
-              'token': agol.token}    
-    
-    jsonResponse = sendAGOLReq(publishURL, query_dict)
-            
-    print("successfully updated...{}...").format(jsonResponse['services'])
-    
-    return jsonResponse['services'][0]['serviceItemId']
-    
-
-def enableSharing(newItemID, everyone, orgs, groups):
-    #
-    # Share an item with everyone, the organization and/or groups
-    #
-
-    shareURL = agol.http+'/content/users/{}/{}/items/{}/share'.format(agol.username, agol.folderID, newItemID)
-
-    if groups == None:
-        groups = ''
-    
-    query_dict = {'f': 'json',
-                  'everyone' : everyone,
-                  'org' : orgs,
-                  'groups' : groups,
-                  'token': agol.token}    
-    
-    jsonResponse = sendAGOLReq(shareURL, query_dict)
-    
-    print("successfully shared...{}...").format(jsonResponse['itemId'])    
-    
-    
-    
-def sendAGOLReq(URL, query_dict):
-    #
-    # Helper function which takes a URL and a dictionary and sends the request
-    #
-    
-    query_string = urllib.urlencode(query_dict)    
-    
-    jsonResponse = urllib.urlopen(URL, urllib.urlencode(query_dict), proxies=proxyDict)
-    jsonOuput = json.loads(jsonResponse.read())
-    
-    wordTest = ["success", "results", "services", "notSharedWith", "folders"]
-    if any(word in jsonOuput for word in wordTest):
-        return jsonOuput    
-    else:
-        print "\nfailed:"
-        print jsonOuput
-        sys.exit()
         
     
 if __name__ == "__main__":
     #
     # start
-    #
     
-    print "Starting Feature Service publish process"
+    print("Starting Feature Service publish process")
     
     # Find and gather settings from the ini file
     localPath = sys.path[0]
     settingsFile = os.path.join(localPath, "settings.ini")
 
     if os.path.isfile(settingsFile):
-        config = ConfigParser.ConfigParser()
+        config = cp.ConfigParser()
         config.read(settingsFile)
     else:
-        print "INI file not found. \nMake sure a valid 'settings.ini' file exists in the same directory as this script."
+        print("INI file not found. \nMake sure a valid 'settings.ini' file exists in the same directory as this script.")
         sys.exit()
     
     # AGOL Credentials
@@ -295,7 +472,7 @@ if __name__ == "__main__":
     serviceName = config.get('FS_INFO', 'SERVICENAME')   
     folderName = config.get('FS_INFO', 'FOLDERNAME')
     tags = config.get('FS_INFO', 'TAGS')
-    description = config.get('FS_INFO', 'DESCRIPTION')
+    summary = config.get('FS_INFO', 'DESCRIPTION')
     maxRecords = config.get('FS_INFO', 'MAXRECORDS')
     
     # Share FS to: everyone, org, groups
@@ -304,15 +481,18 @@ if __name__ == "__main__":
     orgs = config.get('FS_SHARE', 'ORG')
     groups = config.get('FS_SHARE', 'GROUPS')  #Groups are by ID. Multiple groups comma separated
     
+    use_prxy = config.get('PROXY', 'USEPROXY')
     pxy_srvr = config.get('PROXY', 'SERVER')
     pxy_port = config.get('PROXY', 'PORT')
     pxy_user = config.get('PROXY', 'USER')
     pxy_pass = config.get('PROXY', 'PASS')
 
-    http_proxy  = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
-    https_proxy = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
-    ftp_proxy   = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
-    proxyDict = {"http"  : http_proxy, "https":https_proxy,"ftp": ftp_proxy}
+    proxyDict = {}
+    if ast.literal_eval(use_prxy):
+        http_proxy  = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+        https_proxy = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+        ftp_proxy   = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+        proxyDict = {"http"  : http_proxy, "https":https_proxy, "ftp": ftp_proxy}
 
     
     # create a temp directory under the script     
@@ -322,21 +502,20 @@ if __name__ == "__main__":
     finalSD = os.path.join(tempDir, serviceName + ".sd")  
 
     #initialize AGOLHandler class
-    agol = AGOLHandler(inputUsername, inputPswd, serviceName, folderName)
+    agol = AGOLHandler(inputUsername, inputPswd, serviceName, folderName, proxyDict)
     
     # Turn map document into .SD file for uploading
-    makeSD(MXD, serviceName, tempDir, finalSD, maxRecords)
+    makeSD(MXD, serviceName, tempDir, finalSD, maxRecords, tags, summary)
     
-    # overwrite the existing .SD on arcgis.com
-    
-    if upload(finalSD, tags, description):
+    # overwrite the existing .SD on arcgis.com    
+    if agol.upload(finalSD, tags, summary):    
         
         # publish the sd which was just uploaded
-        newItemID = publish()
+        fsID = agol.publish()
         
         # share the item
-        if shared:
-            enableSharing(newItemID, everyone, orgs, groups)
+        if ast.literal_eval(shared):
+            agol.enableSharing(fsID, everyone, orgs, groups)
             
-        print "\nfinished."
+        print("\nfinished.")
     
