@@ -8,13 +8,15 @@ from xml.etree import ElementTree as ET
 
 class AGOLHandler(object):    
     
-    def __init__(self, username, password, serviceName):
+    def __init__(self, username, password, serviceName, folderName):
         self.username = username
         self.password = password
         self.serviceName = serviceName
         self.token, self.http = self.getToken(username, password)
         self.itemID = self.findItem("Feature Service")
         self.SDitemID = self.findItem("Service Definition")
+        self.folderName = folderName
+        self.folderID = self.findFolder()
         
     def getToken(self, username, password, exp=60):
         
@@ -29,7 +31,7 @@ class AGOLHandler(object):
         query_string = urllib.urlencode(query_dict)
         url = "https://www.arcgis.com/sharing/rest/generateToken"
         
-        token = json.loads(urllib.urlopen(url + "?f=json", query_string).read())
+        token = json.loads(urllib.urlopen(url + "?f=json", query_string, proxies=proxyDict).read())
         
         if "token" not in token:
             print token['error']
@@ -60,6 +62,30 @@ class AGOLHandler(object):
             print("found {} : {}").format(findType, jsonResponse['results'][0]["id"])    
         
         return jsonResponse['results'][0]["id"]
+
+    def findFolder(self):
+        #
+        # Find the ID of the folder containing the service
+        #
+
+        if self.folderName == "None":
+            return ""
+        
+        findURL = self.http + "/content/users/{}".format(self.username)
+
+        query_dict = {'f': 'json',
+                      'num': 1,
+                      'token': self.token}
+
+        jsonResponse = sendAGOLReq(findURL, query_dict)
+
+        for folder in jsonResponse['folders']:
+            if folder['title'] == self.folderName:
+                return folder['id']
+        
+        print "\nCould not find the specified folder name provided in the settings.ini"
+        print "-- If your content is in the root folder, change the folder name to 'None'"
+        sys.exit()
             
 
 def urlopen(url, data=None):
@@ -157,7 +183,7 @@ def upload(fileName, tags, description):
     # This method uses 3rd party module: requests
     #
     
-    updateURL = agol.http+'/content/users/{}/items/{}/update'.format(agol.username, agol.SDitemID)
+    updateURL = agol.http+'/content/users/{}/{}/items/{}/update'.format(agol.username, agol.folderID, agol.SDitemID)
         
     filesUp = {"file": open(fileName, 'rb')}
     
@@ -168,7 +194,7 @@ def upload(fileName, tags, description):
         "&tags="+tags+\
         "&description="+description
         
-    response = requests.post(url, files=filesUp);     
+    response = requests.post(url, files=filesUp, proxies=proxyDict);     
     itemPartJSON = json.loads(response.text)
     
     if "success" in itemPartJSON:
@@ -190,6 +216,7 @@ def publish():
     
     query_dict = {'itemID': agol.SDitemID,
               'filetype': 'serviceDefinition',
+              'overwrite': 'true',
               'f': 'json',
               'token': agol.token}    
     
@@ -200,27 +227,12 @@ def publish():
     return jsonResponse['services'][0]['serviceItemId']
     
 
-def deleteExisting():
-    #
-    # Delete the item from AGOL
-    #
-        
-    deleteURL = agol.http+'/content/users/{}/items/{}/delete'.format(agol.username, agol.itemID)
-    
-    query_dict = {'f': 'json',
-                  'token': agol.token}    
-    
-    jsonResponse = sendAGOLReq(deleteURL, query_dict)
-    
-    print("successfully deleted...{}...").format(jsonResponse['itemId'])    
-
-    
-
 def enableSharing(newItemID, everyone, orgs, groups):
     #
     # Share an item with everyone, the organization and/or groups
     #
-    shareURL = agol.http+'/content/users/{}/items/{}/share'.format(agol.username, newItemID)
+
+    shareURL = agol.http+'/content/users/{}/{}/items/{}/share'.format(agol.username, agol.folderID, newItemID)
 
     if groups == None:
         groups = ''
@@ -244,10 +256,10 @@ def sendAGOLReq(URL, query_dict):
     
     query_string = urllib.urlencode(query_dict)    
     
-    jsonResponse = urllib.urlopen(URL, urllib.urlencode(query_dict))
+    jsonResponse = urllib.urlopen(URL, urllib.urlencode(query_dict), proxies=proxyDict)
     jsonOuput = json.loads(jsonResponse.read())
     
-    wordTest = ["success", "results", "services", "notSharedWith"]
+    wordTest = ["success", "results", "services", "notSharedWith", "folders"]
     if any(word in jsonOuput for word in wordTest):
         return jsonOuput    
     else:
@@ -281,6 +293,7 @@ if __name__ == "__main__":
     # FS values
     MXD = config.get('FS_INFO', 'MXD')
     serviceName = config.get('FS_INFO', 'SERVICENAME')   
+    folderName = config.get('FS_INFO', 'FOLDERNAME')
     tags = config.get('FS_INFO', 'TAGS')
     description = config.get('FS_INFO', 'DESCRIPTION')
     maxRecords = config.get('FS_INFO', 'MAXRECORDS')
@@ -291,6 +304,16 @@ if __name__ == "__main__":
     orgs = config.get('FS_SHARE', 'ORG')
     groups = config.get('FS_SHARE', 'GROUPS')  #Groups are by ID. Multiple groups comma separated
     
+    pxy_srvr = config.get('PROXY', 'SERVER')
+    pxy_port = config.get('PROXY', 'PORT')
+    pxy_user = config.get('PROXY', 'USER')
+    pxy_pass = config.get('PROXY', 'PASS')
+
+    http_proxy  = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+    https_proxy = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+    ftp_proxy   = "http://" + pxy_user + ":" + pxy_pass + "@" + pxy_srvr + ":" + pxy_port
+    proxyDict = {"http"  : http_proxy, "https":https_proxy,"ftp": ftp_proxy}
+
     
     # create a temp directory under the script     
     tempDir = os.path.join(localPath, "tempDir")
@@ -299,7 +322,7 @@ if __name__ == "__main__":
     finalSD = os.path.join(tempDir, serviceName + ".sd")  
 
     #initialize AGOLHandler class
-    agol = AGOLHandler(inputUsername, inputPswd, serviceName)
+    agol = AGOLHandler(inputUsername, inputPswd, serviceName, folderName)
     
     # Turn map document into .SD file for uploading
     makeSD(MXD, serviceName, tempDir, finalSD, maxRecords)
@@ -307,9 +330,6 @@ if __name__ == "__main__":
     # overwrite the existing .SD on arcgis.com
     
     if upload(finalSD, tags, description):
-    
-        # delete the existing service
-        deleteExisting()
         
         # publish the sd which was just uploaded
         newItemID = publish()
