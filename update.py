@@ -442,7 +442,7 @@ if __name__ == "__main__":
 
     # Find and gather settings from the ini file
     localPath = sys.path[0]
-    settingsFile = os.path.join(localPath, "settingsKEV.ini")
+    settingsFile = os.path.join(localPath, "settings.ini")
 
     if os.path.isfile(settingsFile):
         config = ConfigParser.ConfigParser()
