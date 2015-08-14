@@ -2,7 +2,7 @@
 
 This Python script turns an MXD into a service definition (SD) file. Your ArcGIS.com account is searched for a matching service. The SD file is uploaded to your ArcGIS.com account, the existing service is overwritten with new content.
 
-#### Note! Update as of August, 2015 - A major overhaul to the entire workflow, but it'll continue updating your hosted feature service just the same as it did previously! The script no longer requires [Requests](http://docs.python-requests.org/en/latest/), it uses built-in Python libaries. It will now push your SD file to arcgis.com using a multipart upload (10mb chunks). This means it should support really big uploads without running out of memory!
+#### Note! Update as of August, 2015 - A major overhaul to the entire workflow, but it'll continue updating your hosted feature service just the same as it did previously! The script no longer requires [Requests](http://docs.python-requests.org/en/latest/), it uses built-in Python libraries. It will now push your SD file to arcgis.com using a multipart upload (10mb chunks). This means it should support really big uploads without running out of memory!
 
 ###### (old)Note! This script was updated August 29, 2014 - The script no longer deletes and re-creates the feature service. It now will overwrite it in place. This means the original itemID of the feature service is maintained and any webmaps that referenced the feature service will continue to work.
 
