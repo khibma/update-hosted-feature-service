@@ -15,7 +15,7 @@ The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com
 2. Save these files to your local working directory
 3.  __Note!__ You no longer need to download requests. The script will run using built-in Python modules now!
 4. Update the settings.ini file to values for your service.
-![App](settings_image.jpg)
+![App](settings_image.png)
 5. Run the python script
 
 ``` 
