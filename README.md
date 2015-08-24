@@ -34,7 +34,7 @@ finished.
 
 ## Requirements
 
-* ArcGIS 10.2 (or 10.2.1)
+* ArcGIS 10.2, 10.2.1, 10.3, 10.3.1
 
 ## Resources
 
