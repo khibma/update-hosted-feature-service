@@ -213,7 +213,12 @@ class AGOLHandler(object):
                       'token': self.token}
 
         jsonResponse = self.url_request(publishURL, query_dict, 'POST')
-        print("successfully updated...{}...".format(jsonResponse['services']))
+        if not jsonResponse['services'][0]['success']:
+            print("Cannot proceed with publishing, error: \n   {}".format(
+                jsonResponse['services'][0]['error']))
+            sys.exit()
+        else:
+            print("successfully updated...{}...".format(jsonResponse['services']))
 
         return jsonResponse['services'][0]['serviceItemId']
 
