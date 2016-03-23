@@ -77,9 +77,11 @@ class AGOLHandler(object):
             print("\nCould not find a service to update. Check the service name in the settings.ini")
             sys.exit()
         else:
-            findid = jsonResponse['results'][0]["id"]
-            print("found {} : {}".format(findType, findid))
-            return findid
+            resultList = jsonResponse['results']
+            for it in resultList:
+                if it["title"] == self.serviceName:
+                    print("found {} : {}").format(findType, it["id"])
+                    return it["id"]
 
     def findFolder(self, folderName=None):
         """ Find the ID of the folder containing the service
