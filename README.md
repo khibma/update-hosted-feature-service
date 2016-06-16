@@ -34,7 +34,8 @@ finished.
 
 ## Requirements
 
-* ArcGIS 10.2, 10.2.1, 10.3, 10.3.1
+* ArcGIS 10.2, 10.2.1, 10.3, 10.3.1, 10.4
+* Python 2.7 (not currently configured to work with Python 3+)
 
 ## Resources
 

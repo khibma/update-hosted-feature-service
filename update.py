@@ -77,9 +77,11 @@ class AGOLHandler(object):
             print("\nCould not find a service to update. Check the service name in the settings.ini")
             sys.exit()
         else:
-            findid = jsonResponse['results'][0]["id"]
-            print("found {} : {}".format(findType, findid))
-            return findid
+            resultList = jsonResponse['results']
+            for it in resultList:
+                if it["title"] == self.serviceName:
+                    print("found {} : {}").format(findType, it["id"])
+                    return it["id"]
 
     def findFolder(self, folderName=None):
         """ Find the ID of the folder containing the service
@@ -213,7 +215,15 @@ class AGOLHandler(object):
                       'token': self.token}
 
         jsonResponse = self.url_request(publishURL, query_dict, 'POST')
-        print("successfully updated...{}...".format(jsonResponse['services']))
+        try:
+            if not jsonResponse['services'][0]['success']:
+                print("Cannot proceed with publishing, error: \n   {}".format(
+                    jsonResponse['services'][0]['error']))
+                sys.exit()
+            else:
+                print("successfully updated...{}...".format(jsonResponse['services']))
+        except Exception as e:
+            print("Problem reading response: \n {}".format(e))
 
         return jsonResponse['services'][0]['serviceItemId']
 
