@@ -223,7 +223,7 @@ class AGOLHandler(object):
             else:
                 print("successfully updated...{}...".format(jsonResponse['services']))
         except Exception as e:
-            print("Problem reading response: \n {}".format(e))
+            print("Problem reading response, jsonResponse: \n {}".format(jsonResponse))
 
         return jsonResponse['services'][0]['serviceItemId']
 
