@@ -180,7 +180,7 @@ class AGOLHandler(object):
 
         return resp
 
-    def item_status(self, item_id):
+    def item_status(self, item_id, jobId=None):
         """ Gets the status of an item.
         Returns:
             The item's status. (partial | processing | failed | completed)
@@ -189,6 +189,9 @@ class AGOLHandler(object):
         url = '{}/content/users/{}/items/{}/status'.format(self.base_url, self.username, item_id)
         parameters = {'token': self.token,
                       'f': 'json'}
+
+        if jobId:
+            parameters['jobId'] = jobId
 
         return self.url_request(url, parameters)
 
@@ -216,16 +219,30 @@ class AGOLHandler(object):
 
         jsonResponse = self.url_request(publishURL, query_dict, 'POST')
         try:
-            if not jsonResponse['services'][0]['success']:
-                print("Cannot proceed with publishing, error: \n   {}".format(
-                    jsonResponse['services'][0]['error']))
-                sys.exit()
-            else:
-                print("successfully updated...{}...".format(jsonResponse['services']))
-        except Exception as e:
-            print("Problem reading response: \n {}".format(e))
+            if 'jobId' in jsonResponse['services'][0]:
+                jobID = jsonResponse['services'][0]['jobId']
 
-        return jsonResponse['services'][0]['serviceItemId']
+                # valid states: partial | processing | failed | completed
+                status = 'processing'
+                print("Checking the status of publish..")
+                while status == 'processing' or status == 'partial':
+                    status = self.item_status(self.SDitemID, jobID)['status']
+                    print("  {}".format(status))
+                    time.sleep(2)
+
+                if status == 'completed':
+                    print("item finished published")
+                    return jsonResponse['services'][0]['serviceItemId']
+                if status == 'failed':
+                    raise("Status of publishing returned FAILED.")
+
+        except Exception as e:
+            print("Problem trying to check publish status. Might be further errors.")
+            print("Returned error Python:\n   {}".format(e))
+            print("Message from publish call:\n  {}".format(jsonResponse))
+            print(" -- quit --")
+            sys.exit()
+
 
     def enableSharing(self, newItemID, everyone, orgs, groups):
         """ Share an item with everyone, the organization and/or groups
