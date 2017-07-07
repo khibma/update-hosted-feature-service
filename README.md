@@ -9,8 +9,8 @@ This Python script turns an MXD into a service definition (SD) file. Your ArcGIS
 See more information on the [associated ArcGIS Blog post](http://blogs.esri.com/esri/arcgis/2014/01/24/updating-your-hosted-feature-service-for-10-2/).
 The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com/esri/arcgis/2013/04/23/updating-arcgis-com-hosted-feature-services-with-python/).
 
-## Instructions
-
+## Instructions:
+### To update a single service
 1. Download the update.py and settings.ini files. (Hint: Click the `Download ZIP` button on the right)
 2. Save these files to your local working directory
 3.  __Note!__ You no longer need to download requests. The script will run using built-in Python modules now!
@@ -18,7 +18,7 @@ The original blog post for ArcGIS 10.1 can be found [here](http://blogs.esri.com
 ![App](settings_image.png)
 5. Run the python script
 
-``` 
+```
 c:\>c:\Python27\ArcGIS10.2\python.exe c:\myLocalDirectory\update.py
 ...
 Starting Feature Service publish process
@@ -31,10 +31,17 @@ successfully updated...[{u'encodedServiceURL': u'http://services1.arcgis.com/hLJ
 successfully shared...7df087dfea1b4c7bad2ba372faeefc1c...
 finished.
 ```
+### To update multiple services
+1. Download the update_directory.py and settings.ini files. (Hint: Click the `Download ZIP` button on the right)
+2. Save these files to your local working directory
+3. Update a settings.ini file for each of your services.  Create one .ini file for each service.  Place these multiple .ini files in a single directory.  The file names do not matter as long as you keep the .ini extension.  
+![App](settings_image.png)
+4. Update the directory variable on line 25 of update_directory.py to point to the directory holding your multiple .ini files (e.g. `directory = r"C:\path\to\ini_files"` ).
+5. Run the update_directory.py python script.
 
 ## Requirements
 
-* ArcGIS 10.2, 10.2.1, 10.3, 10.3.1, 10.4
+* ArcGIS 10.2, 10.2.1, 10.3, 10.3.1, 10.4, 10.4.1
 * Python 2.7 (not currently configured to work with Python 3+)
 
 ## Resources
